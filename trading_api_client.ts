@@ -55,17 +55,25 @@ export interface Metrics {
   p50: number;
   p95: number;
   p99: number;
-  cache_hits: number;
+cache_hits: number;
   cache_misses: number;
 }
 
 class TradingApiClient {
   private baseURL: string;
 
-  constructor(baseURL: string = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") {
-    this.baseURL = baseURL;
+  constructor(baseURL?: string) {
+    this.baseURL = baseURL || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) || "http://localhost:5000";
   }
 
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    return response.json();
+  }
+  
   /**
    * Fetch all available equities
    */
@@ -79,7 +87,7 @@ class TradingApiClient {
     if (params?.limit) queryParams.append("limit", params.limit.toString());
 
     const response = await fetch(`${this.baseURL}/api/v3/equities?${queryParams}`);
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -93,7 +101,7 @@ class TradingApiClient {
     const response = await fetch(`${this.baseURL}/api/v3/equities/refresh`, {
       method: "POST",
     });
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -105,7 +113,7 @@ class TradingApiClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticker }),
     });
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -117,7 +125,7 @@ class TradingApiClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tickers }),
     });
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -133,7 +141,7 @@ class TradingApiClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ limit }),
     });
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -144,6 +152,11 @@ class TradingApiClient {
     onProgress: (data: { type: string; index?: number; data?: Prediction; total?: number }) => void
   ): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/v3/predict/stream?limit=${limit}`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
 
@@ -159,11 +172,13 @@ class TradingApiClient {
       for (const line of lines) {
         if (line.startsWith("data: ")) {
           const jsonStr = line.substring(6);
-          try {
-            const data = JSON.parse(jsonStr);
-            onProgress(data);
-          } catch (e) {
-            console.error("Failed to parse SSE data:", e);
+          if (jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                onProgress(data);
+            } catch (e) {
+                console.error("Failed to parse SSE data:", e);
+            }
           }
         }
       }
@@ -178,6 +193,10 @@ class TradingApiClient {
     onProgress: (event: string, data: any) => void
   ): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/v3/stream?ticker=${ticker}`);
+     if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
 
@@ -224,7 +243,7 @@ class TradingApiClient {
     const response = await fetch(
       `${this.baseURL}/api/v3/search?q=${encodeURIComponent(query)}`
     );
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -232,7 +251,7 @@ class TradingApiClient {
    */
   async getHealth(): Promise<HealthStatus> {
     const response = await fetch(`${this.baseURL}/api/v3/health`);
-    return response.json();
+    return this.handleResponse(response);
   }
 
   /**
@@ -240,7 +259,7 @@ class TradingApiClient {
    */
   async getMetrics(): Promise<Metrics> {
     const response = await fetch(`${this.baseURL}/api/v3/metrics`);
-    return response.json();
+    return this.handleResponse(response);
   }
 }
 

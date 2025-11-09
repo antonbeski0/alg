@@ -1,6 +1,4 @@
-# Military-Grade Trading System - ENHANCED WITH ALL EQUITIES
-# ✅ Ultra-low latency + Full Production Features + All Equities Fetching
-# Author: BE SKY & GPT-5
+
 
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
